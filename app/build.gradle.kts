@@ -29,7 +29,7 @@ android {
         signingConfigs.create("shared") {
             storeFile = file(keystorePath)
             storePassword = System.getenv("SIGNING_PASSWORD")
-            keyAlias = "obdskaner"
+            keyAlias = System.getenv("SIGNING_KEY_ALIAS") ?: "obdskaner"
             keyPassword = System.getenv("SIGNING_PASSWORD")
         }
     } else {

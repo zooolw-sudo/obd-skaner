@@ -34,15 +34,25 @@ jobs:
         id: signing
         env:
           SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
         run: |
           if [ -z "$SIGNING_KEYSTORE_BASE64" ]; then
             echo "::warning::Brak sekretów SIGNING_KEYSTORE_BASE64 i SIGNING_PASSWORD – APK zostanie zbudowane, ale nie opublikowane."
             echo "ready=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "$SIGNING_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/obd-skaner.keystore"
-            echo "SIGNING_KEYSTORE_FILE=$RUNNER_TEMP/obd-skaner.keystore" >> "$GITHUB_ENV"
-            echo "ready=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          keystore="$RUNNER_TEMP/obd-skaner.keystore"
+          echo "$SIGNING_KEYSTORE_BASE64" | tr -d ' \r\n' | base64 -d > "$keystore"
+          # Alias odczytujemy z pliku – działa z kluczem z Android Studio, keytool i Windows (.pfx).
+          alias=$(keytool -list -keystore "$keystore" -storepass "$SIGNING_PASSWORD" 2>/dev/null \
+            | grep -i 'PrivateKeyEntry' | head -n1 | cut -d, -f1)
+          if [ -z "$alias" ]; then
+            echo "::error::Nie udało się otworzyć klucza – sprawdź sekrety SIGNING_KEYSTORE_BASE64 i SIGNING_PASSWORD."
+            exit 1
+          fi
+          echo "SIGNING_KEYSTORE_FILE=$keystore" >> "$GITHUB_ENV"
+          echo "SIGNING_KEY_ALIAS=$alias" >> "$GITHUB_ENV"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
 
       - name: Zbuduj APK
         env:
