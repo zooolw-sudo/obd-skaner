@@ -17,6 +17,8 @@ import pl.obdskaner.bluetooth.BluetoothClassicTransport
 import pl.obdskaner.core.ObdError
 import pl.obdskaner.core.ObdException
 import pl.obdskaner.core.elm.Elm327
+import pl.obdskaner.core.gmlan.GmlanProgress
+import pl.obdskaner.core.gmlan.GmlanScanner
 import pl.obdskaner.core.obd.DtcKind
 import pl.obdskaner.core.obd.ObdClient
 import pl.obdskaner.core.obd.Pids
@@ -140,6 +142,7 @@ class ScannerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun startLive() {
         val c = client ?: return
+        if (_state.value.gmlan.running) return
         liveRequested = true
         if (liveJob?.isActive == true) return
 
@@ -181,7 +184,7 @@ class ScannerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun readDtcs() {
         val c = client ?: return
-        if (_state.value.dtcLoading) return
+        if (_state.value.dtcLoading || _state.value.gmlan.running) return
         viewModelScope.launch {
             _state.update { it.copy(dtcLoading = true) }
             try {
@@ -200,7 +203,7 @@ class ScannerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearDtcs() {
         val c = client ?: return
-        if (_state.value.dtcLoading) return
+        if (_state.value.dtcLoading || _state.value.gmlan.running) return
         viewModelScope.launch {
             _state.update { it.copy(dtcLoading = true) }
             var cleared = false
@@ -220,6 +223,44 @@ class ScannerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ── Pozostałe ────────────────────────────────────────────────────────────────
+
+    // ── Pozostałe sterowniki (GMLAN) ─────────────────────────────────────────────
+
+    fun scanGmlan() {
+        val c = client ?: return
+        val s = _state.value
+        if (s.gmlan.running || s.dtcLoading) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(gmlan = GmlanState(running = true, step = "Przygotowanie adaptera")) }
+            // Odczyt na żywo musi się zakończyć, zanim adapter przejdzie w tryb surowych ramek.
+            liveRequested = false
+            liveJob?.join()
+            try {
+                val modules = GmlanScanner(c.elm, c.protocol).scan { p ->
+                    val (step, progress) = when (p) {
+                        is GmlanProgress.Probing ->
+                            "Szukam sterowników: ${p.address.label} (${p.index + 1}/${p.total})" to
+                                0.7f * (p.index + 1) / p.total
+                        is GmlanProgress.Reading ->
+                            "Odczyt błędów: ${p.module.name} (${p.index + 1}/${p.total})" to
+                                0.7f + 0.3f * p.index / p.total
+                    }
+                    _state.update { it.copy(gmlan = it.gmlan.copy(step = step, progress = progress)) }
+                }
+                _state.update { it.copy(gmlan = GmlanState(modules = modules)) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: ObdException) {
+                if (e.error == ObdError.DISCONNECTED) {
+                    _state.update { it.copy(gmlan = GmlanState()) }
+                    onConnectionLost(e)
+                } else {
+                    _state.update { it.copy(gmlan = GmlanState(error = e.userMessage())) }
+                }
+            }
+        }
+    }
 
     fun consumeMessage() {
         _state.update { it.copy(message = null) }

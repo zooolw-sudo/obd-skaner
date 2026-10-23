@@ -41,13 +41,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import pl.obdskaner.core.gmlan.GmlanCompatibility
 import pl.obdskaner.core.obd.Dtc
 import pl.obdskaner.core.obd.DtcKind
 import pl.obdskaner.core.obd.MonitorStatus
 
 @Composable
-fun DtcScreen(state: ScannerState, onRead: () -> Unit, onClear: () -> Unit) {
+fun DtcScreen(
+    state: ScannerState,
+    onRead: () -> Unit,
+    onClear: () -> Unit,
+    onScanGmlan: () -> Unit,
+) {
     var confirmClear by remember { mutableStateOf(false) }
+    var confirmGmlan by remember { mutableStateOf(false) }
+    val busy = state.dtcLoading || state.gmlan.running
+    val compatibility = state.vehicle?.let { GmlanCompatibility.of(it.protocol, it.vin) }
 
     // Przy pierwszym wejściu odczytujemy błędy automatycznie.
     LaunchedEffect(Unit) {
@@ -64,7 +73,7 @@ fun DtcScreen(state: ScannerState, onRead: () -> Unit, onClear: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
                     onClick = onRead,
-                    enabled = !state.dtcLoading,
+                    enabled = !busy,
                     modifier = Modifier.weight(1f),
                 ) {
                     Icon(Icons.Filled.Refresh, contentDescription = null)
@@ -73,7 +82,7 @@ fun DtcScreen(state: ScannerState, onRead: () -> Unit, onClear: () -> Unit) {
                 }
                 OutlinedButton(
                     onClick = { confirmClear = true },
-                    enabled = !state.dtcLoading && state.dtcs != null,
+                    enabled = !busy && state.dtcs != null,
                     modifier = Modifier.weight(1f),
                 ) {
                     Icon(Icons.Filled.Delete, contentDescription = null)
@@ -107,6 +116,25 @@ fun DtcScreen(state: ScannerState, onRead: () -> Unit, onClear: () -> Unit) {
                 }
             }
         }
+
+        gmlanSection(
+            gmlan = state.gmlan,
+            compatibility = compatibility,
+            busy = busy,
+            onScan = {
+                if (compatibility == GmlanCompatibility.SUPPORTED) onScanGmlan() else confirmGmlan = true
+            },
+        )
+    }
+
+    if (confirmGmlan) {
+        GmlanConfirmDialog(
+            onConfirm = {
+                confirmGmlan = false
+                onScanGmlan()
+            },
+            onDismiss = { confirmGmlan = false },
+        )
     }
 
     if (confirmClear) {

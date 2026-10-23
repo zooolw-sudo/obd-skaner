@@ -9,7 +9,23 @@ Co potrafi:
 - pokazuje stan kontrolki „check engine”,
 - kasuje błędy (04) z ostrzeżeniem,
 - odczytuje VIN i napięcie akumulatora,
-- zapisuje dziennik surowej komunikacji z adapterem (zakładka „Info”, przycisk „Kopiuj”).
+- zapisuje dziennik surowej komunikacji z adapterem (zakładka „Info”, przycisk „Kopiuj”),
+- **Saab 9-3 (2003+) i Ople z siecią GMLAN:** skanuje pozostałe sterowniki na magistrali P-bus
+  (ABS/ESP, skrzynia, CIM, MIU…) i odczytuje z nich kody błędów z typem usterki, np. `C0035-01`.
+
+### Skan sterowników GMLAN
+
+Ekran „Błędy” → „Skanuj sterowniki”. Aplikacja:
+1. przełącza adapter w tryb surowych ramek CAN (`ATH1`, `ATCAF0`, filtry `ATCF`/`ATCM`),
+2. wysyła TesterPresent (`$3E`) na adresy `0x241–0x25F` i `0x7E0–0x7E7` i zapamiętuje, kto odpowiedział,
+3. z każdego znalezionego sterownika czyta błędy usługą `$A9 $81` z maską `$12`
+   (bieżące + historyczne); lista przychodzi w ramkach UUDT `0x5xx`,
+4. resetuje adapter (`ATZ`) i wraca do zwykłego OBD2.
+
+Tylko odczyt – skan niczego nie zapisuje ani nie kasuje. Działa wyłącznie na magistrali P-bus
+(CAN 500 kbit/s, piny 6 i 14). Moduły z I-bus (jednoprzewodowa CAN 33 kbit/s: BCM, drzwi, tył
+nadwozia) wymagają adaptera z obsługą SW-CAN, np. OBDLink MX+. Skan uruchamia się bez pytania
+tylko wtedy, gdy VIN wskazuje auto GM (Saab `YS3`, Opel `W0L`/`W0V`…).
 
 ## Pobranie gotowego APK
 
@@ -60,6 +76,7 @@ obd-core/   czysty Kotlin, bez Androida – cała logika OBD
   transport/  ObdTransport (interfejs), StreamTransport (baza dla Bluetooth/TCP)
   elm/        Elm327 (komendy AT, oczekiwanie na „>”), ResponseParser, ObdProtocol
   obd/        ObdClient (usługi OBD), Pids (wzory), DtcDecoder, DtcDescriptions
+  gmlan/      GmlanScanner (skan sterowników Saab/Opel), GmlanCompatibility (sprawdzenie po VIN)
 app/        aplikacja Android (Jetpack Compose)
   bluetooth/  BluetoothClassicTransport (profil SPP)
   ui/         ScannerViewModel + ekrany: urządzenia, na żywo, błędy, info

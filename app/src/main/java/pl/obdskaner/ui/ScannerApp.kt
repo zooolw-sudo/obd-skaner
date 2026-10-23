@@ -131,7 +131,12 @@ private fun ConnectedScreen(
         ) {
             when (tab) {
                 Tab.LIVE -> LiveScreen(state, onStart = vm::startLive, onStop = vm::stopLive)
-                Tab.DTC -> DtcScreen(state, onRead = vm::readDtcs, onClear = vm::clearDtcs)
+                Tab.DTC -> DtcScreen(
+                    state,
+                    onRead = vm::readDtcs,
+                    onClear = vm::clearDtcs,
+                    onScanGmlan = vm::scanGmlan,
+                )
                 Tab.INFO -> InfoScreen(state, log)
             }
         }

@@ -1,5 +1,6 @@
 package pl.obdskaner.ui
 
+import pl.obdskaner.core.gmlan.GmlanModule
 import pl.obdskaner.core.obd.Dtc
 import pl.obdskaner.core.obd.DtcKind
 import pl.obdskaner.core.obd.MonitorStatus
@@ -36,6 +37,18 @@ data class ScannerState(
     /** null = jeszcze nie odczytano. */
     val dtcs: Map<DtcKind, List<Dtc>>? = null,
     val dtcLoading: Boolean = false,
+    val gmlan: GmlanState = GmlanState(),
     /** Krótki komunikat do pokazania na pasku na dole ekranu. */
     val message: String? = null,
+)
+
+/** Skan pozostałych sterowników (Saab / Opel z siecią GMLAN). */
+data class GmlanState(
+    val running: Boolean = false,
+    /** Opis bieżącego kroku i postęp od 0 do 1. */
+    val step: String? = null,
+    val progress: Float = 0f,
+    /** null = jeszcze nie skanowano. */
+    val modules: List<GmlanModule>? = null,
+    val error: String? = null,
 )
